@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لعبة XO - Tic Tac Toe</title>
+  <link rel="stylesheet" href="style.css">
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+  <div class="container">
+    <h1>⭕ XO ❌</h1>
+    <p class="subtitle">لعبة إكس-أو الكلاسيكية</p>
+
+    <!-- اختيار وضع اللعب -->
+    <div class="mode-selection">
+      <button class="mode-btn active" data-mode="pvp">👥 لاعبين</button>
+      <button class="mode-btn" data-mode="easy">🤖 سهل</button>
+      <button class="mode-btn" data-mode="hard">🔥 صعب</button>
+    </div>
+
+    <!-- لوحة النتائج -->
+    <div class="scoreboard">
+      <div class="score-item">
+        <div class="score-label">❌ X</div>
+        <div class="score-value score-x" id="scoreX">0</div>
+      </div>
+      <div class="score-item">
+        <div class="score-label">🤝 تعادل</div>
+        <div class="score-value score-d" id="scoreD">0</div>
+      </div>
+      <div class="score-item">
+        <div class="score-label">⭕ O</div>
+        <div class="score-value score-o" id="scoreO">0</div>
+      </div>
+    </div>
+
+    <!-- حالة اللعبة -->
+    <div class="status" id="status">دور اللاعب: ❌ X</div>
+
+    <!-- لوحة اللعب -->
+    <div class="board" id="board">
+      <div class="cell" data-index="0"></div>
+      <div class="cell" data-index="1"></div>
+      <div class="cell" data-index="2"></div>
+      <div class="cell" data-index="3"></div>
+      <div class="cell" data-index="4"></div>
+      <div class="cell" data-index="5"></div>
+      <div class="cell" data-index="6"></div>
+      <div class="cell" data-index="7"></div>
+      <div class="cell" data-index="8"></div>
+    </div>
+
+    <!-- أزرار التحكم -->
+    <div class="controls">
+      <button class="btn" id="restartBtn">🔄 جولة جديدة</button>
+      <button class="btn btn-secondary" id="resetBtn">🗑️ مسح النتائج</button>
+    </div>
+
+    <p class="footer">صنع بـ ❤️ | مشروع على GitHub</p>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
