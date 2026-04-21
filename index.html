@@ -3,34 +3,49 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>لعبة XO - Tic Tac Toe</title>
+  <meta name="description" content="لعبة إكس-أو (Tic Tac Toe) كلاسيكية مع ذكاء اصطناعي ومؤثرات صوتية">
+  <title>لعبة XO - Tic Tac Toe v2.0</title>
   <link rel="stylesheet" href="style.css">
-<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+  <script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
 <body>
   <div class="container">
+    <!-- أزرار الثيم والصوت -->
+    <button class="theme-toggle" id="themeToggle" title="تبديل الوضع الليلي/النهاري" aria-label="تبديل الثيم">🌙</button>
+    <button class="sound-toggle" id="soundToggle" title="تشغيل/إيقاف الصوت" aria-label="تبديل الصوت">🔊</button>
+
     <h1>⭕ XO ❌</h1>
-    <p class="subtitle">لعبة إكس-أو الكلاسيكية</p>
+    <p class="subtitle">
+      <span class="version-badge">v2.0</span>
+      لعبة إكس-أو الكلاسيكية
+    </p>
+
+    <!-- أسماء اللاعبين -->
+    <div class="player-names">
+      <input type="text" class="player-input" id="playerXName" placeholder="❌ اللاعب X" maxlength="15" value="اللاعب X">
+      <input type="text" class="player-input" id="playerOName" placeholder="⭕ اللاعب O" maxlength="15" value="اللاعب O">
+    </div>
 
     <!-- اختيار وضع اللعب -->
     <div class="mode-selection">
-      <button class="mode-btn active" data-mode="pvp">👥 لاعبين</button>
-      <button class="mode-btn" data-mode="easy">🤖 سهل</button>
-      <button class="mode-btn" data-mode="hard">🔥 صعب</button>
+      <button class="mode-btn active" data-mode="pvp" title="لاعب ضد لاعب">👥 لاعبين</button>
+      <button class="mode-btn" data-mode="easy" title="ذكاء سهل - عشوائي">🤖 سهل</button>
+      <button class="mode-btn" data-mode="medium" title="ذكاء متوسط">⚡ متوسط</button>
+      <button class="mode-btn" data-mode="hard" title="ذكاء صعب - Minimax">🔥 صعب</button>
     </div>
 
     <!-- لوحة النتائج -->
     <div class="scoreboard">
-      <div class="score-item">
-        <div class="score-label">❌ X</div>
+      <div class="score-item" id="scoreItemX">
+        <div class="score-label" id="labelX">❌ X</div>
         <div class="score-value score-x" id="scoreX">0</div>
       </div>
-      <div class="score-item">
+      <div class="score-item" id="scoreItemD">
         <div class="score-label">🤝 تعادل</div>
         <div class="score-value score-d" id="scoreD">0</div>
       </div>
-      <div class="score-item">
-        <div class="score-label">⭕ O</div>
+      <div class="score-item" id="scoreItemO">
+        <div class="score-label" id="labelO">⭕ O</div>
         <div class="score-value score-o" id="scoreO">0</div>
       </div>
     </div>
@@ -40,24 +55,46 @@
 
     <!-- لوحة اللعب -->
     <div class="board" id="board">
-      <div class="cell" data-index="0"></div>
-      <div class="cell" data-index="1"></div>
-      <div class="cell" data-index="2"></div>
-      <div class="cell" data-index="3"></div>
-      <div class="cell" data-index="4"></div>
-      <div class="cell" data-index="5"></div>
-      <div class="cell" data-index="6"></div>
-      <div class="cell" data-index="7"></div>
-      <div class="cell" data-index="8"></div>
+      <div class="cell" data-index="0" data-key="1"></div>
+      <div class="cell" data-index="1" data-key="2"></div>
+      <div class="cell" data-index="2" data-key="3"></div>
+      <div class="cell" data-index="3" data-key="4"></div>
+      <div class="cell" data-index="4" data-key="5"></div>
+      <div class="cell" data-index="5" data-key="6"></div>
+      <div class="cell" data-index="6" data-key="7"></div>
+      <div class="cell" data-index="7" data-key="8"></div>
+      <div class="cell" data-index="8" data-key="9"></div>
     </div>
 
     <!-- أزرار التحكم -->
     <div class="controls">
       <button class="btn" id="restartBtn">🔄 جولة جديدة</button>
+      <button class="btn btn-undo" id="undoBtn" disabled>↩️ تراجع</button>
       <button class="btn btn-secondary" id="resetBtn">🗑️ مسح النتائج</button>
     </div>
 
-    <p class="footer">صنع بـ ❤️ | مشروع على GitHub</p>
+    <!-- سجل الحركات -->
+    <div class="history-section">
+      <button class="history-toggle" id="historyToggle">📜 عرض سجل الحركات</button>
+      <div class="history-list" id="historyList"></div>
+    </div>
+
+    <p class="footer">
+      💡 يمكنك استخدام أرقام <strong>1-9</strong> في لوحة المفاتيح للعب<br>
+      صنع بـ ❤️ | <a href="https://github.com/khaledjackfree/vsa" target="_blank">GitHub</a>
+    </p>
+  </div>
+
+  <!-- مودال النتيجة -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h2 id="modalTitle">🎉 فاز اللاعب X!</h2>
+      <p id="modalMessage">مبروك الفوز!</p>
+      <div class="modal-buttons">
+        <button class="btn" id="modalPlayAgain">🔄 جولة جديدة</button>
+        <button class="btn btn-secondary" id="modalClose">✖️ إغلاق</button>
+      </div>
+    </div>
   </div>
 
   <script src="script.js"></script>
