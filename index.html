@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="description" content="لعبة إكس-أو (Tic Tac Toe) كلاسيكية مع ذكاء اصطناعي ومؤثرات صوتية وإنجازات وإحصائيات">
-  <title>لعبة XO - Tic Tac Toe v3.0</title>
+  <title>لعبة XO - Tic Tac Toe v4.0</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
@@ -22,9 +22,17 @@
 
     <h1>⭕ XO ❌</h1>
     <p class="subtitle">
-      <span class="version-badge">v3.0</span>
+      <span class="version-badge">v4.0</span>
       لعبة إكس-أو الكلاسيكية مع ذكاء اصطناعي
     </p>
+
+    <!-- شارة الرتبة -->
+    <div class="rank-badge-wrapper" id="rankBadgeWrapper" title="الرتبة الحالية">
+      <span class="rank-icon" id="rankIcon">🥉</span>
+      <span class="rank-name" id="rankName">مبتدئ</span>
+      <div class="rank-progress-bar"><div class="rank-progress-fill" id="rankProgressFill"></div></div>
+      <span class="rank-xp" id="rankXP">0 XP</span>
+    </div>
 
     <!-- قائمة الثيمات (منسدلة) -->
     <div class="palette-menu" id="paletteMenu">
@@ -36,10 +44,16 @@
       <button class="palette-option" data-palette="rose" title="وردي"><span class="palette-swatch" style="background: linear-gradient(135deg, #ff9a9e, #fad0c4);"></span>وردي</button>
     </div>
 
-    <!-- أسماء اللاعبين -->
+    <!-- أسماء اللاعبين + الأفاتار -->
     <div class="player-names">
-      <input type="text" class="player-input" id="playerXName" placeholder="❌ اللاعب X" maxlength="15" value="اللاعب X">
-      <input type="text" class="player-input" id="playerOName" placeholder="⭕ اللاعب O" maxlength="15" value="اللاعب O">
+      <div class="player-input-group">
+        <button class="avatar-btn" id="avatarXBtn" data-player="X" title="اختيار أفاتار X">🦊</button>
+        <input type="text" class="player-input" id="playerXName" placeholder="❌ اللاعب X" maxlength="15" value="اللاعب X">
+      </div>
+      <div class="player-input-group">
+        <button class="avatar-btn" id="avatarOBtn" data-player="O" title="اختيار أفاتار O">🐼</button>
+        <input type="text" class="player-input" id="playerOName" placeholder="⭕ اللاعب O" maxlength="15" value="اللاعب O">
+      </div>
     </div>
 
     <!-- اختيار وضع اللعب -->
@@ -56,6 +70,22 @@
       <button class="timer-btn active" data-timer="0" title="بدون وقت">∞ بدون</button>
       <button class="timer-btn" data-timer="10" title="10 ثوانٍ لكل حركة">10 ث</button>
       <button class="timer-btn" data-timer="30" title="30 ثانية لكل حركة">30 ث</button>
+    </div>
+
+    <!-- حجم اللوحة -->
+    <div class="board-size-selection">
+      <span class="timer-label">🎲 حجم اللوحة:</span>
+      <button class="board-size-btn active" data-size="3" title="لوحة 3×3 كلاسيكية">3×3</button>
+      <button class="board-size-btn" data-size="4" title="لوحة 4×4 (4 متتالية للفوز)">4×4</button>
+      <button class="board-size-btn" data-size="5" title="لوحة 5×5 (4 متتالية للفوز)">5×5</button>
+    </div>
+
+    <!-- زر التحدي اليومي -->
+    <div class="daily-challenge-wrapper">
+      <button class="btn btn-daily" id="dailyChallengeBtn" title="تحدي يومي جديد كل يوم">
+        🌟 التحدي اليومي
+        <span class="daily-badge" id="dailyChallengeBadge" style="display: none;">جديد!</span>
+      </button>
     </div>
 
     <!-- لوحة النتائج -->
@@ -81,24 +111,15 @@
       <span class="timer-text" id="timerText">0</span>
     </div>
 
-    <!-- لوحة اللعب -->
-    <div class="board" id="board">
-      <div class="cell" data-index="0" data-key="1"></div>
-      <div class="cell" data-index="1" data-key="2"></div>
-      <div class="cell" data-index="2" data-key="3"></div>
-      <div class="cell" data-index="3" data-key="4"></div>
-      <div class="cell" data-index="4" data-key="5"></div>
-      <div class="cell" data-index="5" data-key="6"></div>
-      <div class="cell" data-index="6" data-key="7"></div>
-      <div class="cell" data-index="7" data-key="8"></div>
-      <div class="cell" data-index="8" data-key="9"></div>
-    </div>
+    <!-- لوحة اللعب (يتم بناؤها ديناميكياً حسب الحجم) -->
+    <div class="board board-3" id="board"></div>
 
     <!-- أزرار التحكم -->
     <div class="controls">
       <button class="btn" id="restartBtn">🔄 جولة جديدة</button>
       <button class="btn btn-hint" id="hintBtn">💡 تلميح</button>
       <button class="btn btn-undo" id="undoBtn" disabled>↩️ تراجع</button>
+      <button class="btn btn-replay" id="replayBtn" disabled>🎬 إعادة عرض</button>
       <button class="btn btn-secondary" id="resetBtn">🗑️ مسح النتائج</button>
     </div>
 
@@ -188,6 +209,48 @@
       </div>
       <div class="modal-buttons">
         <button class="btn" id="helpCloseBtn">✖️ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- موديال اختيار الأفاتار -->
+  <div class="modal-overlay" id="avatarModalOverlay">
+    <div class="modal modal-wide">
+      <h2>🎭 اختر أفاتار</h2>
+      <p id="avatarModalSubtitle">اختر أفاتار للاعب</p>
+      <div class="avatar-grid" id="avatarGrid"></div>
+      <div class="modal-buttons">
+        <button class="btn btn-secondary" id="avatarCloseBtn">✖️ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- موديال التحدي اليومي -->
+  <div class="modal-overlay" id="dailyModalOverlay">
+    <div class="modal modal-wide">
+      <h2>🌟 التحدي اليومي</h2>
+      <p id="dailyModalDate"></p>
+      <div class="daily-challenge-info" id="dailyChallengeInfo"></div>
+      <div class="modal-buttons">
+        <button class="btn" id="dailyStartBtn">🎮 ابدأ التحدي</button>
+        <button class="btn btn-secondary" id="dailyCloseBtn">✖️ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- موديال إعادة العرض (Replay) -->
+  <div class="modal-overlay" id="replayModalOverlay">
+    <div class="modal modal-wide">
+      <h2>🎬 إعادة عرض المباراة</h2>
+      <div class="replay-board" id="replayBoard"></div>
+      <div class="replay-info" id="replayInfo">الحركة 0 / 0</div>
+      <div class="replay-controls">
+        <button class="btn btn-secondary" id="replayPrevBtn">⏮️ السابق</button>
+        <button class="btn" id="replayPlayBtn">▶️ تشغيل</button>
+        <button class="btn btn-secondary" id="replayNextBtn">⏭️ التالي</button>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn btn-secondary" id="replayCloseBtn">✖️ إغلاق</button>
       </div>
     </div>
   </div>

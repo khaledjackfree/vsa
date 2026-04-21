@@ -1,7 +1,8 @@
-// ===== XO Game Logic v3.0 =====
+// ===== XO Game Logic v4.0 =====
 
 // ===== عناصر DOM =====
-const cells = document.querySelectorAll('.cell');
+let cells = document.querySelectorAll('.cell'); // يُعاد بناؤها مع كل تغيير حجم لوحة
+const boardEl = document.getElementById('board');
 const statusEl = document.getElementById('status');
 const restartBtn = document.getElementById('restartBtn');
 const resetBtn = document.getElementById('resetBtn');
@@ -58,7 +59,42 @@ const timerText = document.getElementById('timerText');
 
 const toast = document.getElementById('toast');
 
+// ===== عناصر DOM v4.0 الجديدة =====
+const boardSizeBtns = document.querySelectorAll('.board-size-btn');
+const avatarXBtn = document.getElementById('avatarXBtn');
+const avatarOBtn = document.getElementById('avatarOBtn');
+const avatarModalOverlay = document.getElementById('avatarModalOverlay');
+const avatarGrid = document.getElementById('avatarGrid');
+const avatarCloseBtn = document.getElementById('avatarCloseBtn');
+const avatarModalSubtitle = document.getElementById('avatarModalSubtitle');
+
+const dailyChallengeBtn = document.getElementById('dailyChallengeBtn');
+const dailyChallengeBadge = document.getElementById('dailyChallengeBadge');
+const dailyModalOverlay = document.getElementById('dailyModalOverlay');
+const dailyModalDate = document.getElementById('dailyModalDate');
+const dailyChallengeInfo = document.getElementById('dailyChallengeInfo');
+const dailyStartBtn = document.getElementById('dailyStartBtn');
+const dailyCloseBtn = document.getElementById('dailyCloseBtn');
+
+const replayBtn = document.getElementById('replayBtn');
+const replayModalOverlay = document.getElementById('replayModalOverlay');
+const replayBoardEl = document.getElementById('replayBoard');
+const replayInfo = document.getElementById('replayInfo');
+const replayPlayBtn = document.getElementById('replayPlayBtn');
+const replayPrevBtn = document.getElementById('replayPrevBtn');
+const replayNextBtn = document.getElementById('replayNextBtn');
+const replayCloseBtn = document.getElementById('replayCloseBtn');
+
+const rankIcon = document.getElementById('rankIcon');
+const rankName = document.getElementById('rankName');
+const rankXPEl = document.getElementById('rankXP');
+const rankProgressFill = document.getElementById('rankProgressFill');
+const rankBadgeWrapper = document.getElementById('rankBadgeWrapper');
+
 // ===== حالة اللعبة =====
+// حجم اللوحة: 3 (3x3), 4 (4x4), 5 (5x5)
+let boardSize = 3;
+let winLength = 3; // عدد الخلايا المتتالية للفوز (3 للوحة 3x3، 4 للبقية)
 let board = ['', '', '', '', '', '', '', '', ''];
 let currentPlayer = 'X';
 let startingPlayer = 'X';
@@ -69,6 +105,43 @@ let moveHistory = [];
 let soundEnabled = true;
 let names = { X: 'اللاعب X', O: 'اللاعب O' };
 let currentPalette = 'purple';
+
+// أفاتار اللاعبين
+let avatars = { X: '🦊', O: '🐼' };
+const AVATAR_OPTIONS = [
+  '🦊','🐼','🦁','🐯','🐺','🦄','🐲','🦖','🐸','🐵',
+  '🦉','🦅','🐙','🦈','🐢','🦋','🐞','👾','🤖','🥷',
+  '🧙','🧚','🧛','🦸','🦹','👑','⚡','🔥','❄️','🌟',
+  '💎','🎮','🎯','🏆','⚽','🎲','🎭','🎨','🚀','🛸'
+];
+
+// نظام الرتب (XP و Ranks)
+let playerXP = 0;
+const RANKS = [
+  { minXP: 0,    icon: '🥉', name: 'مبتدئ' },
+  { minXP: 50,   icon: '🥈', name: 'هاوٍ' },
+  { minXP: 150,  icon: '🥇', name: 'محترف' },
+  { minXP: 300,  icon: '🏅', name: 'خبير' },
+  { minXP: 500,  icon: '🎖️', name: 'نخبة' },
+  { minXP: 800,  icon: '🏆', name: 'أسطورة' },
+  { minXP: 1200, icon: '👑', name: 'ملك XO' },
+  { minXP: 2000, icon: '💎', name: 'جراند ماستر' },
+];
+let lastRankIndex = 0;
+
+// سجل المباراة الأخيرة (للإعادة)
+let lastGameReplay = null;
+let replayState = {
+  currentStep: 0,
+  playing: false,
+  interval: null,
+  size: 3,
+};
+
+// التحدي اليومي
+let dailyChallenge = null;
+let isDailyChallenge = false;
+let dailyChallengeCompleted = false;
 
 // إحصائيات تفصيلية
 let stats = {
@@ -91,12 +164,46 @@ let timerInterval = null;
 // لتتبع استخدام التراجع في اللعبة الحالية
 let currentGameUsedUndo = false;
 
-// ===== خطوط الفوز =====
-const winPatterns = [
-  [0, 1, 2], [3, 4, 5], [6, 7, 8], // أفقي
-  [0, 3, 6], [1, 4, 7], [2, 5, 8], // عمودي
-  [0, 4, 8], [2, 4, 6]             // قطري
-];
+// ===== خطوط الفوز (يتم توليدها ديناميكياً حسب حجم اللوحة) =====
+let winPatterns = [];
+
+function generateWinPatterns(size, length) {
+  const patterns = [];
+  // صفوف (أفقي)
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c <= size - length; c++) {
+      const pattern = [];
+      for (let k = 0; k < length; k++) pattern.push(r * size + c + k);
+      patterns.push(pattern);
+    }
+  }
+  // أعمدة (عمودي)
+  for (let c = 0; c < size; c++) {
+    for (let r = 0; r <= size - length; r++) {
+      const pattern = [];
+      for (let k = 0; k < length; k++) pattern.push((r + k) * size + c);
+      patterns.push(pattern);
+    }
+  }
+  // قطر نزولي (يمين)
+  for (let r = 0; r <= size - length; r++) {
+    for (let c = 0; c <= size - length; c++) {
+      const pattern = [];
+      for (let k = 0; k < length; k++) pattern.push((r + k) * size + (c + k));
+      patterns.push(pattern);
+    }
+  }
+  // قطر صاعد (يسار)
+  for (let r = 0; r <= size - length; r++) {
+    for (let c = length - 1; c < size; c++) {
+      const pattern = [];
+      for (let k = 0; k < length; k++) pattern.push((r + k) * size + (c - k));
+      patterns.push(pattern);
+    }
+  }
+  return patterns;
+}
+winPatterns = generateWinPatterns(3, 3);
 
 // ===== تعريف الإنجازات =====
 const ACHIEVEMENTS = [
@@ -116,6 +223,14 @@ const ACHIEVEMENTS = [
   { id: 'total_10', icon: '🎲', title: 'محترف', desc: 'العب 10 مباريات' },
   { id: 'total_25', icon: '💎', title: 'خبير', desc: 'العب 25 مباراة' },
   { id: 'theme_explorer', icon: '🎨', title: 'مستكشف الألوان', desc: 'جرب 3 ثيمات مختلفة' },
+  // إنجازات v4.0 الجديدة
+  { id: 'play_4x4', icon: '🎲', title: 'محارب الـ 4×4', desc: 'العب على لوحة 4×4' },
+  { id: 'play_5x5', icon: '🌐', title: 'سيد الـ 5×5', desc: 'العب على لوحة 5×5' },
+  { id: 'win_4x4', icon: '🏅', title: 'بطل 4×4', desc: 'افز على لوحة 4×4' },
+  { id: 'daily_win', icon: '🌟', title: 'بطل اليوم', desc: 'اكمل التحدي اليومي بنجاح' },
+  { id: 'rank_up', icon: '📈', title: 'الصعود', desc: 'ارتقِ إلى الرتبة الثانية' },
+  { id: 'elite_rank', icon: '💎', title: 'نخبوي', desc: 'الوصول لرتبة النخبة' },
+  { id: 'avatar_picker', icon: '🎭', title: 'متأنق', desc: 'غيّر الأفاتار الخاص بك' },
 ];
 
 let achievements = {};        // { id: true/false }
@@ -227,12 +342,40 @@ function loadState() {
       timerLimit = parseInt(savedTimer) || 0;
       timerBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.timer) === timerLimit));
     }
+
+    // v4.0 - تحميل حجم اللوحة
+    const savedBoardSize = localStorage.getItem('xo-board-size');
+    if (savedBoardSize) {
+      boardSize = parseInt(savedBoardSize) || 3;
+    }
+
+    // v4.0 - تحميل الأفاتار
+    const savedAvatars = localStorage.getItem('xo-avatars');
+    if (savedAvatars) avatars = { ...avatars, ...JSON.parse(savedAvatars) };
+
+    // v4.0 - تحميل XP والرتبة
+    const savedXP = localStorage.getItem('xo-xp');
+    if (savedXP) playerXP = parseInt(savedXP) || 0;
+
+    // v4.0 - تحميل آخر مباراة للإعادة
+    const savedReplay = localStorage.getItem('xo-last-replay');
+    if (savedReplay) {
+      try { lastGameReplay = JSON.parse(savedReplay); } catch(e){}
+    }
+
+    // v4.0 - تحميل حالة التحدي اليومي
+    const savedDaily = localStorage.getItem('xo-daily');
+    if (savedDaily) {
+      try { dailyChallenge = JSON.parse(savedDaily); } catch(e){}
+    }
   } catch (e) {
     console.warn('Error loading state:', e);
   }
 
   updateScoreDisplay();
   updateLabels();
+  updateAvatarDisplay();
+  updateRankDisplay();
 }
 
 function saveScores() { localStorage.setItem('xo-scores', JSON.stringify(scores)); }
@@ -261,28 +404,37 @@ function updateScoreDisplay(animateKey = null) {
 function updateLabels() {
   const nameX = names.X || 'اللاعب X';
   const nameO = gameMode === 'pvp' ? (names.O || 'اللاعب O') : '🤖 الكمبيوتر';
-  labelX.textContent = `❌ ${nameX}`;
-  labelO.textContent = `⭕ ${nameO}`;
+  const avX = avatars.X || '❌';
+  const avO = gameMode === 'pvp' ? (avatars.O || '⭕') : '🤖';
+  labelX.textContent = `${avX} ${nameX}`;
+  labelO.textContent = `${avO} ${nameO}`;
 
   playerOName.disabled = (gameMode !== 'pvp');
   playerOName.style.opacity = playerOName.disabled ? '0.5' : '1';
+  if (avatarOBtn) {
+    avatarOBtn.disabled = (gameMode !== 'pvp');
+    avatarOBtn.style.opacity = avatarOBtn.disabled ? '0.5' : '1';
+  }
 }
 
 function updateStatus(text) { statusEl.textContent = text; }
 
 function getPlayerDisplay(player) {
-  if (player === 'X') return `❌ ${names.X || 'اللاعب X'}`;
+  const avX = avatars.X || '❌';
+  const avO = avatars.O || '⭕';
+  if (player === 'X') return `${avX} ${names.X || 'اللاعب X'}`;
   return gameMode === 'pvp'
-    ? `⭕ ${names.O || 'اللاعب O'}`
-    : '⭕ 🤖 الكمبيوتر';
+    ? `${avO} ${names.O || 'اللاعب O'}`
+    : '🤖 الكمبيوتر';
 }
 
 // ===== منطق اللعبة =====
 function checkWinner(boardState = board) {
   for (const pattern of winPatterns) {
-    const [a, b, c] = pattern;
-    if (boardState[a] && boardState[a] === boardState[b] && boardState[a] === boardState[c]) {
-      return { winner: boardState[a], pattern };
+    const first = boardState[pattern[0]];
+    if (!first) continue;
+    if (pattern.every(i => boardState[i] === first)) {
+      return { winner: first, pattern };
     }
   }
   if (!boardState.includes('')) return { winner: 'draw', pattern: null };
@@ -308,6 +460,7 @@ function makeMove(index, player) {
   });
   renderHistory();
   updateUndoButton();
+  updateReplayButton();
 }
 
 function handleCellClick(e) {
@@ -362,29 +515,35 @@ function getRandomMove() {
 }
 
 function getBestMove(forPlayer = 'O') {
-  // Minimax حيث forPlayer هو الذي يحاول التعظيم
   const opponent = forPlayer === 'O' ? 'X' : 'O';
-  let bestScore = -Infinity;
-  let bestMove = -1;
-  for (let i = 0; i < board.length; i++) {
-    if (board[i] === '') {
-      board[i] = forPlayer;
-      const score = minimax(board, 0, false, forPlayer, opponent);
-      board[i] = '';
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = i;
+
+  // للوحة 3×3: Minimax الكامل (مثالي)
+  if (boardSize === 3) {
+    let bestScore = -Infinity;
+    let bestMove = -1;
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] === '') {
+        board[i] = forPlayer;
+        const score = minimax(board, 0, false, forPlayer, opponent, -Infinity, Infinity);
+        board[i] = '';
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = i;
+        }
       }
     }
+    return bestMove;
   }
-  return bestMove;
+
+  // للوحات الأكبر: Heuristic + Minimax عمق محدود
+  return getHeuristicMove(forPlayer);
 }
 
-function minimax(boardState, depth, isMaximizing, maxPlayer, minPlayer) {
+function minimax(boardState, depth, isMaximizing, maxPlayer, minPlayer, alpha, beta) {
   const result = checkWinner(boardState);
   if (result) {
-    if (result.winner === maxPlayer) return 10 - depth;
-    if (result.winner === minPlayer) return depth - 10;
+    if (result.winner === maxPlayer) return 100 - depth;
+    if (result.winner === minPlayer) return depth - 100;
     if (result.winner === 'draw') return 0;
   }
 
@@ -393,8 +552,10 @@ function minimax(boardState, depth, isMaximizing, maxPlayer, minPlayer) {
     for (let i = 0; i < boardState.length; i++) {
       if (boardState[i] === '') {
         boardState[i] = maxPlayer;
-        best = Math.max(best, minimax(boardState, depth + 1, false, maxPlayer, minPlayer));
+        best = Math.max(best, minimax(boardState, depth + 1, false, maxPlayer, minPlayer, alpha, beta));
         boardState[i] = '';
+        alpha = Math.max(alpha, best);
+        if (beta <= alpha) break;
       }
     }
     return best;
@@ -403,12 +564,88 @@ function minimax(boardState, depth, isMaximizing, maxPlayer, minPlayer) {
     for (let i = 0; i < boardState.length; i++) {
       if (boardState[i] === '') {
         boardState[i] = minPlayer;
-        best = Math.min(best, minimax(boardState, depth + 1, true, maxPlayer, minPlayer));
+        best = Math.min(best, minimax(boardState, depth + 1, true, maxPlayer, minPlayer, alpha, beta));
         boardState[i] = '';
+        beta = Math.min(beta, best);
+        if (beta <= alpha) break;
       }
     }
     return best;
   }
+}
+
+// ===== Heuristic للوحات الكبيرة =====
+function getHeuristicMove(forPlayer) {
+  const opponent = forPlayer === 'O' ? 'X' : 'O';
+
+  // 1) فوز فوري إن أمكن
+  for (let i = 0; i < board.length; i++) {
+    if (board[i] === '') {
+      board[i] = forPlayer;
+      if (checkWinner(board)?.winner === forPlayer) { board[i] = ''; return i; }
+      board[i] = '';
+    }
+  }
+  // 2) منع خسارة فورية
+  for (let i = 0; i < board.length; i++) {
+    if (board[i] === '') {
+      board[i] = opponent;
+      if (checkWinner(board)?.winner === opponent) { board[i] = ''; return i; }
+      board[i] = '';
+    }
+  }
+  // 3) اختيار أفضل خلية بناءً على تقييم الأنماط المحتملة
+  let bestScore = -Infinity;
+  let bestMove = -1;
+  const candidates = [];
+  for (let i = 0; i < board.length; i++) {
+    if (board[i] === '') {
+      const score = evaluateMove(i, forPlayer);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = i;
+        candidates.length = 0;
+        candidates.push(i);
+      } else if (score === bestScore) {
+        candidates.push(i);
+      }
+    }
+  }
+  // إضافة عشوائية بسيطة بين الخيارات المتكافئة
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
+
+function evaluateMove(index, player) {
+  const opponent = player === 'O' ? 'X' : 'O';
+  let score = 0;
+  const center = Math.floor(boardSize / 2);
+  const r = Math.floor(index / boardSize);
+  const c = index % boardSize;
+
+  // الخلايا المركزية أفضل
+  const distFromCenter = Math.abs(r - center) + Math.abs(c - center);
+  score += (boardSize - distFromCenter) * 2;
+
+  // فحص كل نمط فوز يمر بهذه الخلية
+  for (const pattern of winPatterns) {
+    if (!pattern.includes(index)) continue;
+    let playerCount = 0;
+    let opponentCount = 0;
+    for (const i of pattern) {
+      if (board[i] === player) playerCount++;
+      else if (board[i] === opponent) opponentCount++;
+    }
+    // لا نستطيع الفوز بهذا النمط إذا احتوى على الخصم
+    if (opponentCount === 0) {
+      // كلما زاد عدد قطعنا في النمط زادت القيمة بشكل أسي
+      score += Math.pow(10, playerCount);
+    }
+    // دفاع: هذا النمط لدى الخصم قطع كثيرة
+    if (playerCount === 0) {
+      score += Math.pow(8, opponentCount);
+    }
+  }
+  return score;
 }
 
 // ===== التلميح (Hint) =====
@@ -432,6 +669,7 @@ function showHint() {
   showToast(`💡 أفضل حركة: الخانة ${bestMove + 1}`);
 
   stats.hintsUsed++;
+  currentGameUsedHint = true;  // v4.0 - تتبع استخدام التلميح في المباراة
   saveStats();
   checkAchievement('use_hint');
 
@@ -581,6 +819,36 @@ function endGame(result) {
   if (stats.totalGames >= 10) unlockedNow.push(checkAchievement('total_10'));
   if (stats.totalGames >= 25) unlockedNow.push(checkAchievement('total_25'));
   if (triedPalettes.size >= 3) unlockedNow.push(checkAchievement('theme_explorer'));
+
+  // v4.0 - إنجاز الفوز على لوحة 4×4
+  if (result.winner === 'X' && boardSize === 4) unlockedNow.push(checkAchievement('win_4x4'));
+
+  // v4.0 - منح XP
+  let xpEarned = 0;
+  let xpReason = '';
+  if (result.winner === 'X') {
+    xpEarned = 10;
+    xpReason = '(فوز)';
+    if (gameMode === 'medium') xpEarned = 15;
+    if (gameMode === 'hard') xpEarned = 25;
+    if (boardSize === 4) xpEarned += 5;
+    if (boardSize === 5) xpEarned += 10;
+    xpReason = `(فوز ${gameMode === 'pvp' ? 'PvP' : gameMode})`;
+  } else if (result.winner === 'draw') {
+    xpEarned = 5;
+    xpReason = '(تعادل)';
+    if (gameMode === 'hard') xpEarned = 15;
+  } else if (result.winner === 'O') {
+    xpEarned = 2;
+    xpReason = '(مشاركة)';
+  }
+  if (xpEarned > 0) addXP(xpEarned, xpReason);
+
+  // v4.0 - حفظ المباراة للإعادة
+  saveLastGameForReplay(result);
+
+  // v4.0 - فحص التحدي اليومي
+  checkDailyCompletion(result);
 
   saveScores();
   saveStats();
@@ -803,11 +1071,12 @@ function toggleHistory() {
 function restartGame() {
   stopTimer();
   startingPlayer = startingPlayer === 'X' ? 'O' : 'X';
-  board = ['', '', '', '', '', '', '', '', ''];
+  board = new Array(boardSize * boardSize).fill('');
   currentPlayer = startingPlayer;
   gameActive = true;
   moveHistory = [];
   currentGameUsedUndo = false;
+  currentGameUsedHint = false; // v4.0
 
   cells.forEach(cell => {
     cell.textContent = '';
@@ -841,6 +1110,7 @@ function changeMode(mode) {
   modeBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.mode === mode));
   updateLabels();
   startingPlayer = 'O';
+  isDailyChallenge = false; // إلغاء التحدي عند تغيير الوضع يدوياً
   restartGame();
 }
 
@@ -970,7 +1240,332 @@ function handleKeyPress(e) {
   }
 }
 
+// =====================================================
+// ===== v4.0 New Features: Board Size / Avatar / Rank / Daily / Replay =====
+// =====================================================
+
+// ----- بناء لوحة اللعب ديناميكياً -----
+function rebuildBoard() {
+  boardEl.innerHTML = '';
+  boardEl.classList.remove('board-3', 'board-4', 'board-5');
+  boardEl.classList.add(`board-${boardSize}`);
+  const total = boardSize * boardSize;
+  for (let i = 0; i < total; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.dataset.index = i;
+    if (i < 9) cell.dataset.key = (i + 1).toString();
+    boardEl.appendChild(cell);
+  }
+  cells = document.querySelectorAll('.cell');
+  cells.forEach(cell => cell.addEventListener('click', handleCellClick));
+}
+
+// ----- تغيير حجم اللوحة -----
+function changeBoardSize(size) {
+  boardSize = size;
+  winLength = size === 3 ? 3 : 4; // 4 متتالية في اللوحات الأكبر
+  winPatterns = generateWinPatterns(boardSize, winLength);
+  board = new Array(boardSize * boardSize).fill('');
+  localStorage.setItem('xo-board-size', boardSize.toString());
+
+  boardSizeBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.size) === size));
+  rebuildBoard();
+  restartGame();
+
+  if (size === 4) checkAchievement('play_4x4');
+  if (size === 5) checkAchievement('play_5x5');
+  saveAchievements();
+
+  showToast(`🎲 تم التبديل إلى لوحة ${size}×${size} (${winLength} متتالية للفوز)`);
+}
+
+// ----- Avatar System -----
+function updateAvatarDisplay() {
+  if (avatarXBtn) avatarXBtn.textContent = avatars.X;
+  if (avatarOBtn) avatarOBtn.textContent = avatars.O;
+}
+
+function openAvatarModal(forPlayer) {
+  avatarModalSubtitle.textContent = `اختر أفاتار ${forPlayer === 'X' ? '❌ اللاعب X' : '⭕ اللاعب O'}`;
+  avatarGrid.innerHTML = '';
+  AVATAR_OPTIONS.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.className = 'avatar-option';
+    btn.textContent = emoji;
+    if (emoji === avatars[forPlayer]) btn.classList.add('selected');
+    btn.addEventListener('click', () => {
+      avatars[forPlayer] = emoji;
+      localStorage.setItem('xo-avatars', JSON.stringify(avatars));
+      updateAvatarDisplay();
+      updateLabels();
+      avatarModalOverlay.classList.remove('show');
+      playClickSound();
+      checkAchievement('avatar_picker');
+      saveAchievements();
+      showToast(`✨ تم تغيير الأفاتار إلى ${emoji}`);
+    });
+    avatarGrid.appendChild(btn);
+  });
+  avatarModalOverlay.classList.add('show');
+  playClickSound();
+}
+
+// ----- Rank System -----
+function getCurrentRank() {
+  let rankIdx = 0;
+  for (let i = RANKS.length - 1; i >= 0; i--) {
+    if (playerXP >= RANKS[i].minXP) { rankIdx = i; break; }
+  }
+  return { index: rankIdx, rank: RANKS[rankIdx] };
+}
+
+function updateRankDisplay() {
+  if (!rankIcon) return;
+  const { index, rank } = getCurrentRank();
+  const nextRank = RANKS[index + 1];
+  rankIcon.textContent = rank.icon;
+  rankName.textContent = rank.name;
+  rankXPEl.textContent = `${playerXP} XP`;
+
+  let progressPct = 100;
+  if (nextRank) {
+    const rangeXP = nextRank.minXP - rank.minXP;
+    const earnedXP = playerXP - rank.minXP;
+    progressPct = Math.min(100, (earnedXP / rangeXP) * 100);
+  }
+  rankProgressFill.style.width = `${progressPct}%`;
+}
+
+function addXP(amount, reason = '') {
+  const oldRank = getCurrentRank();
+  playerXP += amount;
+  localStorage.setItem('xo-xp', playerXP.toString());
+  updateRankDisplay();
+  const newRank = getCurrentRank();
+
+  if (newRank.index > oldRank.index) {
+    // level up!
+    rankBadgeWrapper.classList.add('leveled-up');
+    setTimeout(() => rankBadgeWrapper.classList.remove('leveled-up'), 1200);
+    playAchievementSound();
+    showToast(`🎉 ارتقيت إلى رتبة: ${newRank.rank.icon} ${newRank.rank.name}!`, 3500);
+    if (newRank.index >= 1) checkAchievement('rank_up');
+    if (newRank.index >= 4) checkAchievement('elite_rank');
+    saveAchievements();
+  } else if (amount > 0 && reason) {
+    showToast(`+${amount} XP ${reason}`, 1800);
+  }
+}
+
+// ----- Daily Challenge -----
+function getTodayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+// قائمة التحديات اليومية - يتم اختيار واحد بناءً على اليوم
+const DAILY_CHALLENGES = [
+  { id: 'hard_3x3', icon: '🔥', title: 'تحدي الصعب', desc: 'افز أو تعادل ضد AI صعب على لوحة 3×3', mode: 'hard', size: 3, reward: 50 },
+  { id: 'speed', icon: '⚡', title: 'السرعة', desc: 'افز في 4 حركات أو أقل', mode: 'easy', size: 3, reward: 40 },
+  { id: 'no_hint', icon: '🎯', title: 'بدون مساعدة', desc: 'افز ضد AI متوسط دون استخدام تلميح', mode: 'medium', size: 3, reward: 35 },
+  { id: 'big_board', icon: '🌐', title: 'اللوحة الكبيرة', desc: 'العب مباراة على لوحة 4×4', mode: 'pvp', size: 4, reward: 30 },
+  { id: 'perfectionist', icon: '💎', title: 'المثالي', desc: 'افز دون استخدام التراجع', mode: 'medium', size: 3, reward: 40 },
+  { id: 'marathon', icon: '🏃', title: 'الماراثون', desc: 'اكمل 3 مباريات اليوم', mode: 'pvp', size: 3, reward: 45, type: 'count' },
+  { id: 'streak2', icon: '🔗', title: 'المتتابع', desc: 'احصل على انتصارين متتاليين', mode: 'easy', size: 3, reward: 40 },
+];
+
+function getTodayChallenge() {
+  const d = new Date();
+  const dayOfYear = Math.floor((d - new Date(d.getFullYear(),0,0)) / (1000*60*60*24));
+  const idx = dayOfYear % DAILY_CHALLENGES.length;
+  return DAILY_CHALLENGES[idx];
+}
+
+function initDailyChallenge() {
+  const today = getTodayKey();
+  const todayChallenge = getTodayChallenge();
+  if (!dailyChallenge || dailyChallenge.date !== today) {
+    dailyChallenge = {
+      date: today,
+      id: todayChallenge.id,
+      completed: false,
+      progress: 0,
+    };
+    localStorage.setItem('xo-daily', JSON.stringify(dailyChallenge));
+  }
+  if (!dailyChallenge.completed) {
+    dailyChallengeBadge.style.display = 'inline-block';
+  } else {
+    dailyChallengeBadge.style.display = 'none';
+  }
+}
+
+function openDailyModal() {
+  const ch = getTodayChallenge();
+  dailyModalDate.textContent = `📅 ${getTodayKey()}`;
+  const status = dailyChallenge.completed ? '<div style="color:#4ade80;font-weight:700;margin-top:10px;">✅ تم إكماله اليوم!</div>' : '';
+  dailyChallengeInfo.innerHTML = `
+    <div class="challenge-title">${ch.icon} ${ch.title}</div>
+    <div class="challenge-desc">${ch.desc}</div>
+    <div class="challenge-reward">🎁 المكافأة: ${ch.reward} XP</div>
+    ${status}
+  `;
+  dailyStartBtn.disabled = dailyChallenge.completed;
+  dailyStartBtn.textContent = dailyChallenge.completed ? '✅ مكتمل' : '🎮 ابدأ التحدي';
+  dailyModalOverlay.classList.add('show');
+  playClickSound();
+}
+
+function startDailyChallenge() {
+  const ch = getTodayChallenge();
+  isDailyChallenge = true;
+  if (ch.size !== boardSize) changeBoardSize(ch.size);
+  if (ch.mode !== gameMode) changeMode(ch.mode);
+  dailyModalOverlay.classList.remove('show');
+  showToast(`🌟 بدأ التحدي اليومي: ${ch.title}`, 2500);
+}
+
+function checkDailyCompletion(gameResult) {
+  if (!isDailyChallenge || dailyChallenge.completed) return;
+  const ch = getTodayChallenge();
+  let completed = false;
+
+  if (ch.id === 'hard_3x3' && (gameResult.winner === 'X' || gameResult.winner === 'draw')) {
+    if (gameMode === 'hard' && boardSize === 3) completed = true;
+  } else if (ch.id === 'speed' && gameResult.winner === 'X') {
+    const xMoves = moveHistory.filter(m => m.player === 'X').length;
+    if (xMoves <= 4) completed = true;
+  } else if (ch.id === 'no_hint' && gameResult.winner === 'X' && gameMode === 'medium') {
+    // نحتاج تتبع هل استخدم التلميح في هذه المباراة
+    if (!currentGameUsedHint) completed = true;
+  } else if (ch.id === 'big_board' && boardSize >= 4) {
+    completed = true;
+  } else if (ch.id === 'perfectionist' && gameResult.winner === 'X' && !currentGameUsedUndo) {
+    if (gameMode === 'medium') completed = true;
+  } else if (ch.id === 'marathon') {
+    dailyChallenge.progress = (dailyChallenge.progress || 0) + 1;
+    if (dailyChallenge.progress >= 3) completed = true;
+  } else if (ch.id === 'streak2' && gameResult.winner === 'X' && stats.currentStreak >= 2) {
+    completed = true;
+  }
+
+  if (completed) {
+    dailyChallenge.completed = true;
+    localStorage.setItem('xo-daily', JSON.stringify(dailyChallenge));
+    dailyChallengeBadge.style.display = 'none';
+    addXP(ch.reward, `(تحدي يومي: ${ch.title})`);
+    checkAchievement('daily_win');
+    saveAchievements();
+    showToast(`🌟 اكملت التحدي اليومي! +${ch.reward} XP`, 3500);
+    isDailyChallenge = false;
+  } else {
+    localStorage.setItem('xo-daily', JSON.stringify(dailyChallenge));
+  }
+}
+
+// ----- Replay System -----
+function updateReplayButton() {
+  replayBtn.disabled = !lastGameReplay || lastGameReplay.moves.length === 0;
+}
+
+function saveLastGameForReplay(result) {
+  lastGameReplay = {
+    size: boardSize,
+    moves: [...moveHistory],
+    result: result,
+    mode: gameMode,
+    date: new Date().toLocaleString('ar-EG'),
+  };
+  localStorage.setItem('xo-last-replay', JSON.stringify(lastGameReplay));
+  updateReplayButton();
+}
+
+function openReplay() {
+  if (!lastGameReplay) return;
+  replayState.currentStep = 0;
+  replayState.playing = false;
+  replayState.size = lastGameReplay.size;
+  replayBoardEl.classList.remove('replay-3','replay-4','replay-5');
+  replayBoardEl.classList.add(`replay-${lastGameReplay.size}`);
+  renderReplayBoard();
+  replayModalOverlay.classList.add('show');
+  playClickSound();
+}
+
+function renderReplayBoard() {
+  replayBoardEl.innerHTML = '';
+  const total = replayState.size * replayState.size;
+  const boardState = new Array(total).fill('');
+  for (let i = 0; i < replayState.currentStep; i++) {
+    const m = lastGameReplay.moves[i];
+    boardState[m.index] = m.player;
+  }
+  for (let i = 0; i < total; i++) {
+    const c = document.createElement('div');
+    c.className = 'replay-cell';
+    if (boardState[i]) {
+      c.textContent = boardState[i];
+      c.classList.add(boardState[i].toLowerCase());
+    }
+    if (replayState.currentStep > 0 && lastGameReplay.moves[replayState.currentStep - 1].index === i) {
+      c.classList.add('highlight');
+    }
+    replayBoardEl.appendChild(c);
+  }
+  replayInfo.textContent = `الحركة ${replayState.currentStep} / ${lastGameReplay.moves.length}`;
+}
+
+function replayNext() {
+  if (replayState.currentStep < lastGameReplay.moves.length) {
+    replayState.currentStep++;
+    renderReplayBoard();
+    playClickSound();
+  }
+}
+
+function replayPrev() {
+  if (replayState.currentStep > 0) {
+    replayState.currentStep--;
+    renderReplayBoard();
+    playClickSound();
+  }
+}
+
+function replayTogglePlay() {
+  if (replayState.playing) {
+    clearInterval(replayState.interval);
+    replayState.playing = false;
+    replayPlayBtn.textContent = '▶️ تشغيل';
+  } else {
+    if (replayState.currentStep >= lastGameReplay.moves.length) replayState.currentStep = 0;
+    replayState.playing = true;
+    replayPlayBtn.textContent = '⏸️ إيقاف';
+    replayState.interval = setInterval(() => {
+      if (replayState.currentStep >= lastGameReplay.moves.length) {
+        clearInterval(replayState.interval);
+        replayState.playing = false;
+        replayPlayBtn.textContent = '🔄 إعادة';
+        return;
+      }
+      replayState.currentStep++;
+      renderReplayBoard();
+      playClickSound();
+    }, 700);
+  }
+}
+
+function closeReplay() {
+  clearInterval(replayState.interval);
+  replayState.playing = false;
+  replayModalOverlay.classList.remove('show');
+}
+
+// متغير لتتبع استخدام التلميح في المباراة
+let currentGameUsedHint = false;
+
 // ===== Event Listeners =====
+// إعادة إرفاق أحداث الخلايا (cells متغير)
 cells.forEach(cell => cell.addEventListener('click', handleCellClick));
 restartBtn.addEventListener('click', restartGame);
 undoBtn.addEventListener('click', undoMove);
@@ -1022,14 +1617,48 @@ document.addEventListener('click', (e) => {
 
 document.addEventListener('keydown', handleKeyPress);
 
+// ===== v4.0 Event Listeners =====
+boardSizeBtns.forEach(btn => btn.addEventListener('click', () => {
+  const size = parseInt(btn.dataset.size);
+  if (size !== boardSize) changeBoardSize(size);
+  playClickSound();
+}));
+
+avatarXBtn.addEventListener('click', () => openAvatarModal('X'));
+avatarOBtn.addEventListener('click', () => openAvatarModal('O'));
+avatarCloseBtn.addEventListener('click', () => avatarModalOverlay.classList.remove('show'));
+avatarModalOverlay.addEventListener('click', (e) => { if (e.target === avatarModalOverlay) avatarModalOverlay.classList.remove('show'); });
+
+dailyChallengeBtn.addEventListener('click', openDailyModal);
+dailyCloseBtn.addEventListener('click', () => dailyModalOverlay.classList.remove('show'));
+dailyStartBtn.addEventListener('click', startDailyChallenge);
+dailyModalOverlay.addEventListener('click', (e) => { if (e.target === dailyModalOverlay) dailyModalOverlay.classList.remove('show'); });
+
+replayBtn.addEventListener('click', openReplay);
+replayCloseBtn.addEventListener('click', closeReplay);
+replayNextBtn.addEventListener('click', replayNext);
+replayPrevBtn.addEventListener('click', replayPrev);
+replayPlayBtn.addEventListener('click', replayTogglePlay);
+replayModalOverlay.addEventListener('click', (e) => { if (e.target === replayModalOverlay) closeReplay(); });
+
 // ===== Initialize =====
 loadState();
+rebuildBoard(); // بناء اللوحة حسب الحجم المحفوظ
+winPatterns = generateWinPatterns(boardSize, boardSize === 3 ? 3 : 4);
+winLength = boardSize === 3 ? 3 : 4;
+board = new Array(boardSize * boardSize).fill('');
+boardSizeBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.size) === boardSize));
 updateStatus(`دور: ${getPlayerDisplay(currentPlayer)}`);
 renderHistory();
 updateUndoButton();
+updateReplayButton();
+initDailyChallenge();
+updateRankDisplay();
+
 // Start timer if enabled
 if (timerLimit > 0) startTimer();
 
-console.log('🎮 XO Game v3.0 Loaded');
+console.log('🎮 XO Game v4.0 Loaded');
 console.log('⌨️ اختصارات: 1-9 (لعب), R (جولة جديدة), U (تراجع), H (تلميح), T (ثيم), S (صوت), Esc (إغلاق)');
+console.log('🆕 v4.0: لوحات 4×4/5×5, نظام الرتب, الأفاتار, التحدي اليومي, إعادة العرض');
 console.log(`🏆 الإنجازات المفتوحة: ${unlockedAchievements.size}/${ACHIEVEMENTS.length}`);
