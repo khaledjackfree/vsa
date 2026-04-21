@@ -3,22 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="لعبة إكس-أو (Tic Tac Toe) كلاسيكية مع ذكاء اصطناعي ومؤثرات صوتية">
-  <title>لعبة XO - Tic Tac Toe v2.0</title>
+  <meta name="description" content="لعبة إكس-أو (Tic Tac Toe) كلاسيكية مع ذكاء اصطناعي ومؤثرات صوتية وإنجازات وإحصائيات">
+  <title>لعبة XO - Tic Tac Toe v3.0</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
 <body>
   <div class="container">
-    <!-- أزرار الثيم والصوت -->
-    <button class="theme-toggle" id="themeToggle" title="تبديل الوضع الليلي/النهاري" aria-label="تبديل الثيم">🌙</button>
-    <button class="sound-toggle" id="soundToggle" title="تشغيل/إيقاف الصوت" aria-label="تبديل الصوت">🔊</button>
+    <!-- أزرار الثيم والصوت والمزيد -->
+    <div class="top-buttons">
+      <button class="icon-btn" id="themeToggle" title="تبديل الوضع الليلي/النهاري" aria-label="تبديل الثيم">🌙</button>
+      <button class="icon-btn" id="soundToggle" title="تشغيل/إيقاف الصوت" aria-label="تبديل الصوت">🔊</button>
+      <button class="icon-btn" id="paletteToggle" title="تغيير الألوان" aria-label="الثيمات">🎨</button>
+      <button class="icon-btn" id="statsBtn" title="الإحصائيات" aria-label="الإحصائيات">📊</button>
+      <button class="icon-btn" id="achievementsBtn" title="الإنجازات" aria-label="الإنجازات">🏆</button>
+      <button class="icon-btn" id="helpBtn" title="كيفية اللعب" aria-label="مساعدة">❓</button>
+    </div>
 
     <h1>⭕ XO ❌</h1>
     <p class="subtitle">
-      <span class="version-badge">v2.0</span>
-      لعبة إكس-أو الكلاسيكية
+      <span class="version-badge">v3.0</span>
+      لعبة إكس-أو الكلاسيكية مع ذكاء اصطناعي
     </p>
+
+    <!-- قائمة الثيمات (منسدلة) -->
+    <div class="palette-menu" id="paletteMenu">
+      <button class="palette-option" data-palette="purple" title="بنفسجي"><span class="palette-swatch" style="background: linear-gradient(135deg, #667eea, #764ba2);"></span>بنفسجي</button>
+      <button class="palette-option" data-palette="ocean" title="بحري"><span class="palette-swatch" style="background: linear-gradient(135deg, #2193b0, #6dd5ed);"></span>بحري</button>
+      <button class="palette-option" data-palette="sunset" title="غروب"><span class="palette-swatch" style="background: linear-gradient(135deg, #ff6e7f, #bfe9ff);"></span>غروب</button>
+      <button class="palette-option" data-palette="forest" title="غابة"><span class="palette-swatch" style="background: linear-gradient(135deg, #134e5e, #71b280);"></span>غابة</button>
+      <button class="palette-option" data-palette="neon" title="نيون"><span class="palette-swatch" style="background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);"></span>نيون</button>
+      <button class="palette-option" data-palette="rose" title="وردي"><span class="palette-swatch" style="background: linear-gradient(135deg, #ff9a9e, #fad0c4);"></span>وردي</button>
+    </div>
 
     <!-- أسماء اللاعبين -->
     <div class="player-names">
@@ -32,6 +48,14 @@
       <button class="mode-btn" data-mode="easy" title="ذكاء سهل - عشوائي">🤖 سهل</button>
       <button class="mode-btn" data-mode="medium" title="ذكاء متوسط">⚡ متوسط</button>
       <button class="mode-btn" data-mode="hard" title="ذكاء صعب - Minimax">🔥 صعب</button>
+    </div>
+
+    <!-- وضع الوقت (Timer) -->
+    <div class="timer-selection">
+      <span class="timer-label">⏱️ الوقت:</span>
+      <button class="timer-btn active" data-timer="0" title="بدون وقت">∞ بدون</button>
+      <button class="timer-btn" data-timer="10" title="10 ثوانٍ لكل حركة">10 ث</button>
+      <button class="timer-btn" data-timer="30" title="30 ثانية لكل حركة">30 ث</button>
     </div>
 
     <!-- لوحة النتائج -->
@@ -50,8 +74,12 @@
       </div>
     </div>
 
-    <!-- حالة اللعبة -->
+    <!-- حالة اللعبة + شريط الوقت -->
     <div class="status" id="status">دور اللاعب: ❌ X</div>
+    <div class="timer-bar-wrapper" id="timerBarWrapper" style="display: none;">
+      <div class="timer-bar" id="timerBar"></div>
+      <span class="timer-text" id="timerText">0</span>
+    </div>
 
     <!-- لوحة اللعب -->
     <div class="board" id="board">
@@ -69,6 +97,7 @@
     <!-- أزرار التحكم -->
     <div class="controls">
       <button class="btn" id="restartBtn">🔄 جولة جديدة</button>
+      <button class="btn btn-hint" id="hintBtn">💡 تلميح</button>
       <button class="btn btn-undo" id="undoBtn" disabled>↩️ تراجع</button>
       <button class="btn btn-secondary" id="resetBtn">🗑️ مسح النتائج</button>
     </div>
@@ -90,12 +119,81 @@
     <div class="modal">
       <h2 id="modalTitle">🎉 فاز اللاعب X!</h2>
       <p id="modalMessage">مبروك الفوز!</p>
+      <div id="modalAchievementUnlock" class="modal-achievement-unlock"></div>
       <div class="modal-buttons">
         <button class="btn" id="modalPlayAgain">🔄 جولة جديدة</button>
+        <button class="btn btn-share" id="modalShare">📤 مشاركة</button>
         <button class="btn btn-secondary" id="modalClose">✖️ إغلاق</button>
       </div>
     </div>
   </div>
+
+  <!-- مودال الإحصائيات -->
+  <div class="modal-overlay" id="statsModalOverlay">
+    <div class="modal modal-wide">
+      <h2>📊 الإحصائيات التفصيلية</h2>
+      <div class="stats-grid" id="statsGrid"></div>
+      <div class="modal-buttons">
+        <button class="btn btn-secondary" id="statsClearBtn">🗑️ مسح الإحصائيات</button>
+        <button class="btn" id="statsCloseBtn">✖️ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال الإنجازات -->
+  <div class="modal-overlay" id="achievementsModalOverlay">
+    <div class="modal modal-wide">
+      <h2>🏆 الإنجازات</h2>
+      <p class="achievements-progress" id="achievementsProgress">0 / 0</p>
+      <div class="achievements-list" id="achievementsList"></div>
+      <div class="modal-buttons">
+        <button class="btn" id="achievementsCloseBtn">✖️ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- مودال المساعدة -->
+  <div class="modal-overlay" id="helpModalOverlay">
+    <div class="modal modal-wide">
+      <h2>❓ كيفية اللعب</h2>
+      <div class="help-content">
+        <h3>🎯 القواعد الأساسية</h3>
+        <p>الهدف هو وضع 3 من علاماتك (X أو O) في صف واحد: أفقي، عمودي، أو قطري قبل خصمك.</p>
+
+        <h3>🎮 أوضاع اللعب</h3>
+        <ul>
+          <li><strong>👥 لاعبين:</strong> العب مع صديق على نفس الجهاز</li>
+          <li><strong>🤖 سهل:</strong> الكمبيوتر يلعب بشكل عشوائي</li>
+          <li><strong>⚡ متوسط:</strong> مزيج من الذكاء والعشوائية</li>
+          <li><strong>🔥 صعب:</strong> ذكاء Minimax - مستحيل هزيمته!</li>
+        </ul>
+
+        <h3>⌨️ اختصارات لوحة المفاتيح</h3>
+        <ul>
+          <li><kbd>1</kbd> - <kbd>9</kbd>: وضع علامة</li>
+          <li><kbd>R</kbd>: جولة جديدة</li>
+          <li><kbd>U</kbd>: تراجع</li>
+          <li><kbd>H</kbd>: تلميح</li>
+          <li><kbd>T</kbd>: تبديل الثيم</li>
+          <li><kbd>S</kbd>: تشغيل/إيقاف الصوت</li>
+          <li><kbd>Esc</kbd>: إغلاق المودال</li>
+        </ul>
+
+        <h3>💡 نصائح</h3>
+        <ul>
+          <li>استخدم زر <strong>💡 تلميح</strong> ليقترح لك الذكاء الاصطناعي أفضل حركة</li>
+          <li>جرّب <strong>⏱️ وضع الوقت</strong> لتحدٍ أكبر</li>
+          <li>افتح <strong>🏆 الإنجازات</strong> لترى ما يمكنك تحقيقه</li>
+        </ul>
+      </div>
+      <div class="modal-buttons">
+        <button class="btn" id="helpCloseBtn">✖️ إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div class="toast" id="toast"></div>
 
   <script src="script.js"></script>
 </body>
