@@ -535,8 +535,8 @@ function getBestMove(forPlayer = 'O') {
     return bestMove;
   }
 
-  // للوحات الأكبر: Heuristic + Minimax عمق محدود
-  return getHeuristicMove(forPlayer);
+  // للوحات 4×4 و 5×5: AI قوي متعدد الطبقات
+  return getStrongMove(forPlayer);
 }
 
 function minimax(boardState, depth, isMaximizing, maxPlayer, minPlayer, alpha, beta) {
@@ -574,78 +574,294 @@ function minimax(boardState, depth, isMaximizing, maxPlayer, minPlayer, alpha, b
   }
 }
 
-// ===== Heuristic للوحات الكبيرة =====
-function getHeuristicMove(forPlayer) {
-  const opponent = forPlayer === 'O' ? 'X' : 'O';
+// =====================================================
+// ===== Strong AI Engine للوحات 4×4 و 5×5 =====
+// =====================================================
+// المهندس: خوارزمية متعددة الطبقات:
+// 1) Win-in-1: أخذ الفوز الفوري
+// 2) Block-in-1: منع الخسارة الفورية
+// 3) Create Fork: خلق تهديد مزدوج (فتح خطين في نفس الوقت)
+// 4) Block Fork: منع fork الخصم
+// 5) Depth-limited Minimax مع Alpha-Beta + Move Ordering + Candidate Filtering
 
-  // 1) فوز فوري إن أمكن
-  for (let i = 0; i < board.length; i++) {
-    if (board[i] === '') {
-      board[i] = forPlayer;
-      if (checkWinner(board)?.winner === forPlayer) { board[i] = ''; return i; }
-      board[i] = '';
+// cache: لكل خلية، قائمة الأنماط المارّة بها (تُبنى عند تغيير حجم اللوحة)
+let patternsByCell = [];
+
+function rebuildPatternCache() {
+  patternsByCell = Array.from({ length: boardSize * boardSize }, () => []);
+  for (let p = 0; p < winPatterns.length; p++) {
+    for (const idx of winPatterns[p]) {
+      patternsByCell[idx].push(p);
     }
   }
-  // 2) منع خسارة فورية
-  for (let i = 0; i < board.length; i++) {
-    if (board[i] === '') {
-      board[i] = opponent;
-      if (checkWinner(board)?.winner === opponent) { board[i] = ''; return i; }
-      board[i] = '';
+}
+
+// إيجاد جميع الخلايا الفارغة التي تحقق فوزاً فورياً للاعب المعطى
+function findWinningMoves(boardState, player) {
+  const wins = [];
+  for (let i = 0; i < boardState.length; i++) {
+    if (boardState[i] !== '') continue;
+    // فحص سريع: فقط الأنماط المارّة بهذه الخلية
+    for (const pIdx of patternsByCell[i]) {
+      const pattern = winPatterns[pIdx];
+      let ok = true;
+      for (const cell of pattern) {
+        if (cell === i) continue;
+        if (boardState[cell] !== player) { ok = false; break; }
+      }
+      if (ok) { wins.push(i); break; }
     }
   }
-  // 3) اختيار أفضل خلية بناءً على تقييم الأنماط المحتملة
-  let bestScore = -Infinity;
-  let bestMove = -1;
-  const candidates = [];
-  for (let i = 0; i < board.length; i++) {
-    if (board[i] === '') {
-      const score = evaluateMove(i, forPlayer);
-      if (score > bestScore) {
-        bestScore = score;
-        bestMove = i;
-        candidates.length = 0;
-        candidates.push(i);
-      } else if (score === bestScore) {
-        candidates.push(i);
+  return wins;
+}
+
+// إيجاد حركات تخلق fork (تهديدين أو أكثر للفوز في نفس الوقت)
+function findForkMoves(boardState, player) {
+  const forks = [];
+  for (let i = 0; i < boardState.length; i++) {
+    if (boardState[i] !== '') continue;
+    boardState[i] = player;
+    const threats = findWinningMoves(boardState, player);
+    boardState[i] = '';
+    if (threats.length >= 2) forks.push(i);
+  }
+  return forks;
+}
+
+// الحصول على خلايا المرشحين: الخلايا الفارغة ضمن شعاع من القطع الموجودة
+function getCandidateMoves(boardState, radius = 2) {
+  const size = boardSize;
+  const hasAnyPiece = boardState.some(v => v !== '');
+  if (!hasAnyPiece) {
+    // أول حركة: المركز
+    const c = Math.floor(size / 2);
+    return [c * size + c];
+  }
+  const candidates = new Set();
+  for (let i = 0; i < boardState.length; i++) {
+    if (boardState[i] === '') continue;
+    const r = Math.floor(i / size);
+    const c = i % size;
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        const nr = r + dr, nc = c + dc;
+        if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+        const ni = nr * size + nc;
+        if (boardState[ni] === '') candidates.add(ni);
       }
     }
   }
-  // إضافة عشوائية بسيطة بين الخيارات المتكافئة
-  return candidates[Math.floor(Math.random() * candidates.length)];
+  return [...candidates];
 }
 
-function evaluateMove(index, player) {
+// تقييم ثابت للوحة - يجمع قيم جميع الأنماط الممكنة
+// قيم موجبة = جيد لـ player، سالبة = جيد للخصم
+function evaluateBoard(boardState, player) {
   const opponent = player === 'O' ? 'X' : 'O';
   let score = 0;
-  const center = Math.floor(boardSize / 2);
-  const r = Math.floor(index / boardSize);
-  const c = index % boardSize;
+  const len = winLength;
 
-  // الخلايا المركزية أفضل
-  const distFromCenter = Math.abs(r - center) + Math.abs(c - center);
-  score += (boardSize - distFromCenter) * 2;
-
-  // فحص كل نمط فوز يمر بهذه الخلية
   for (const pattern of winPatterns) {
-    if (!pattern.includes(index)) continue;
-    let playerCount = 0;
-    let opponentCount = 0;
+    let pCount = 0, oCount = 0;
     for (const i of pattern) {
-      if (board[i] === player) playerCount++;
-      else if (board[i] === opponent) opponentCount++;
+      if (boardState[i] === player) pCount++;
+      else if (boardState[i] === opponent) oCount++;
     }
-    // لا نستطيع الفوز بهذا النمط إذا احتوى على الخصم
-    if (opponentCount === 0) {
-      // كلما زاد عدد قطعنا في النمط زادت القيمة بشكل أسي
-      score += Math.pow(10, playerCount);
-    }
-    // دفاع: هذا النمط لدى الخصم قطع كثيرة
-    if (playerCount === 0) {
-      score += Math.pow(8, opponentCount);
+    // إذا احتوى النمط على كلا اللاعبين، فهو مُحبَط (لا قيمة)
+    if (pCount > 0 && oCount > 0) continue;
+
+    if (pCount > 0) {
+      if (pCount === len) return 1000000;   // فوز
+      if (pCount === len - 1) score += 1000; // تهديد فوز
+      else if (pCount === len - 2) score += 50;
+      else score += pCount * 2;
+    } else if (oCount > 0) {
+      if (oCount === len) return -1000000;   // خسارة
+      if (oCount === len - 1) score -= 1200; // تهديد خصم (أعلى قليلاً = تركيز دفاعي)
+      else if (oCount === len - 2) score -= 55;
+      else score -= oCount * 2;
     }
   }
+
+  // بونص على المركزية
+  const size = boardSize;
+  const center = (size - 1) / 2;
+  for (let i = 0; i < boardState.length; i++) {
+    if (boardState[i] !== player && boardState[i] !== opponent) continue;
+    const r = Math.floor(i / size), c = i % size;
+    const dist = Math.abs(r - center) + Math.abs(c - center);
+    const bonus = Math.max(0, size - dist);
+    score += boardState[i] === player ? bonus : -bonus;
+  }
   return score;
+}
+
+// Minimax محدود العمق مع Alpha-Beta pruning وترتيب الحركات
+function minimaxLimited(boardState, depth, isMax, maxPlayer, minPlayer, alpha, beta) {
+  // Terminal check
+  const winner = checkWinnerFast(boardState);
+  if (winner === maxPlayer) return 1000000 - (100 - depth);
+  if (winner === minPlayer) return -1000000 + (100 - depth);
+  if (winner === 'draw' || depth === 0) {
+    return evaluateBoard(boardState, maxPlayer);
+  }
+
+  const candidates = getCandidateMoves(boardState, 1);
+  if (candidates.length === 0) return evaluateBoard(boardState, maxPlayer);
+
+  // Move ordering: قيّم كل مرشح سريعاً ورتّب تنازلياً
+  const currentPlayer = isMax ? maxPlayer : minPlayer;
+  const ordered = candidates.map(idx => {
+    boardState[idx] = currentPlayer;
+    const s = evaluateBoard(boardState, maxPlayer);
+    boardState[idx] = '';
+    return { idx, s };
+  }).sort((a, b) => isMax ? b.s - a.s : a.s - b.s);
+
+  if (isMax) {
+    let best = -Infinity;
+    for (const { idx } of ordered) {
+      boardState[idx] = maxPlayer;
+      const val = minimaxLimited(boardState, depth - 1, false, maxPlayer, minPlayer, alpha, beta);
+      boardState[idx] = '';
+      if (val > best) best = val;
+      if (best > alpha) alpha = best;
+      if (beta <= alpha) break;
+    }
+    return best;
+  } else {
+    let best = Infinity;
+    for (const { idx } of ordered) {
+      boardState[idx] = minPlayer;
+      const val = minimaxLimited(boardState, depth - 1, true, maxPlayer, minPlayer, alpha, beta);
+      boardState[idx] = '';
+      if (val < best) best = val;
+      if (best < beta) beta = best;
+      if (beta <= alpha) break;
+    }
+    return best;
+  }
+}
+
+// فاحص فوز سريع - يعتمد على patternsByCell (مع فحص جميع الأنماط)
+function checkWinnerFast(boardState) {
+  const len = winLength;
+  for (const pattern of winPatterns) {
+    const first = boardState[pattern[0]];
+    if (first === '') continue;
+    let allSame = true;
+    for (let k = 1; k < len; k++) {
+      if (boardState[pattern[k]] !== first) { allSame = false; break; }
+    }
+    if (allSame) return first;
+  }
+  if (boardState.every(v => v !== '')) return 'draw';
+  return null;
+}
+
+// الدالة الرئيسية: AI قوي للوحات 4×4 و 5×5
+function getStrongMove(forPlayer) {
+  // تأكد من أن cache الأنماط محدّث
+  if (patternsByCell.length !== boardSize * boardSize) rebuildPatternCache();
+
+  const opponent = forPlayer === 'O' ? 'X' : 'O';
+
+  // الطبقة 1: فوز فوري
+  const myWins = findWinningMoves(board, forPlayer);
+  if (myWins.length > 0) return myWins[0];
+
+  // الطبقة 2: منع خسارة فورية
+  const theirWins = findWinningMoves(board, opponent);
+  if (theirWins.length > 0) {
+    // إذا كان هناك أكثر من تهديد، نمنع الأول (نحن خاسرون على أي حال)
+    return theirWins[0];
+  }
+
+  // الطبقة 3: خلق fork (تهديدان معاً)
+  const myForks = findForkMoves(board, forPlayer);
+  if (myForks.length > 0) {
+    // اختر أفضل fork بالتقييم
+    let bestIdx = myForks[0], bestScore = -Infinity;
+    for (const idx of myForks) {
+      board[idx] = forPlayer;
+      const s = evaluateBoard(board, forPlayer);
+      board[idx] = '';
+      if (s > bestScore) { bestScore = s; bestIdx = idx; }
+    }
+    return bestIdx;
+  }
+
+  // الطبقة 4: منع fork الخصم
+  const theirForks = findForkMoves(board, opponent);
+  if (theirForks.length > 0) {
+    if (theirForks.length === 1) return theirForks[0];
+    // إذا كانت الخصم عنده عدة forks: اصنع تهديداً يجبره على الدفاع خارج fork
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] !== '') continue;
+      board[i] = forPlayer;
+      const myThreats = findWinningMoves(board, forPlayer);
+      board[i] = '';
+      // تهديد لا يسمح للخصم بالوصول إلى fork
+      if (myThreats.length >= 1 && !theirForks.includes(myThreats[0])) {
+        return i;
+      }
+    }
+    return theirForks[0];
+  }
+
+  // الطبقة 5: Depth-limited Minimax مع Alpha-Beta
+  // العمق حسب حجم اللوحة وعدد القطع المتبقية
+  const emptyCount = board.filter(v => v === '').length;
+  let depth;
+  if (boardSize === 4) {
+    depth = emptyCount > 10 ? 3 : (emptyCount > 6 ? 4 : 6);
+  } else { // 5x5
+    depth = emptyCount > 18 ? 2 : (emptyCount > 12 ? 3 : 4);
+  }
+
+  const candidates = getCandidateMoves(board, 2);
+  if (candidates.length === 0) {
+    // fallback: أي خلية فارغة
+    return board.indexOf('');
+  }
+
+  // ترتيب أولي للمرشحين
+  const scored = candidates.map(idx => {
+    board[idx] = forPlayer;
+    const s = evaluateBoard(board, forPlayer);
+    board[idx] = '';
+    return { idx, s };
+  }).sort((a, b) => b.s - a.s);
+
+  let bestMove = scored[0].idx;
+  let bestValue = -Infinity;
+  let alpha = -Infinity;
+  const beta = Infinity;
+  const topCandidates = scored.slice(0, Math.min(scored.length, boardSize === 5 ? 8 : 12));
+
+  for (const { idx } of topCandidates) {
+    board[idx] = forPlayer;
+    const value = minimaxLimited(board, depth - 1, false, forPlayer, opponent, alpha, beta);
+    board[idx] = '';
+    if (value > bestValue) {
+      bestValue = value;
+      bestMove = idx;
+    }
+    if (value > alpha) alpha = value;
+  }
+
+  return bestMove;
+}
+
+// احتفظ بـ getHeuristicMove/evaluateMove للتوافق الخلفي (غير مستخدمة الآن)
+function getHeuristicMove(forPlayer) {
+  return getStrongMove(forPlayer);
+}
+function evaluateMove(index, player) {
+  board[index] = player;
+  const s = evaluateBoard(board, player);
+  board[index] = '';
+  return s;
 }
 
 // ===== التلميح (Hint) =====
@@ -1266,6 +1482,7 @@ function changeBoardSize(size) {
   boardSize = size;
   winLength = size === 3 ? 3 : 4; // 4 متتالية في اللوحات الأكبر
   winPatterns = generateWinPatterns(boardSize, winLength);
+  rebuildPatternCache();
   board = new Array(boardSize * boardSize).fill('');
   localStorage.setItem('xo-board-size', boardSize.toString());
 
@@ -1646,6 +1863,7 @@ loadState();
 rebuildBoard(); // بناء اللوحة حسب الحجم المحفوظ
 winPatterns = generateWinPatterns(boardSize, boardSize === 3 ? 3 : 4);
 winLength = boardSize === 3 ? 3 : 4;
+rebuildPatternCache();
 board = new Array(boardSize * boardSize).fill('');
 boardSizeBtns.forEach(b => b.classList.toggle('active', parseInt(b.dataset.size) === boardSize));
 updateStatus(`دور: ${getPlayerDisplay(currentPlayer)}`);
